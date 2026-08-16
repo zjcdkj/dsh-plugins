@@ -28,6 +28,8 @@ dsh plugin --profile web add -w dsh-plugin-qwen-image
 dsh plugin --profile web update dsh-plugin-qwen-image
 ```
 
+它取的是安装时写下的那个范围内的版本，而且不需要 `-w`。`0.x` 版本上 npm 的 caret 会停在下一个 minor 之前，所以 `^0.2.0` 能拿到 `0.2.x` 但拿不到 `0.3.0` —— 跨 minor 要重新执行一次安装命令。每个版本改了什么记在 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 一条视觉路由
 
 这个工具需要一个能吃图的模型。

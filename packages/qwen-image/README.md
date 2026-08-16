@@ -28,6 +28,8 @@ To update later:
 dsh plugin --profile web update dsh-plugin-qwen-image
 ```
 
+That reaches releases inside the range the install wrote, and needs no `-w`. On a `0.x` version npm's caret stops below the next minor, so `^0.2.0` picks up `0.2.x` but not `0.3.0` — crossing a minor means running the install command again. [CHANGELOG.md](CHANGELOG.md) records what each release changed.
+
 ## A vision route
 
 The tool needs one model that accepts images.
