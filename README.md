@@ -12,7 +12,7 @@ Plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 | Plugin | npm | What it does |
 |---|---|---|
 | [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | Gives a text-only coding model eyes. A local image goes to a vision route through `ctx.llm` and comes back as text, so DeepSeek keeps driving the session while Qwen does the looking. It finds a vision route on its own, so a dsh that already reaches one needs no configuration. |
-| [session-resources](packages/session-resources) | [`dsh-plugin-session-resources`](https://www.npmjs.com/package/dsh-plugin-session-resources) | A ledger of what one session touched: a Resources tab listing the files it produced and the files it used as sources, click to open. Folded from tool render intent rather than by reading the disk, and directories outside the session workspace are flagged. |
+| [session-resources](packages/session-resources) | [`dsh-plugin-session-resources`](https://www.npmjs.com/package/dsh-plugin-session-resources) | A file panel beside the conversation: the session's workspace as a tree you can walk, the files this session produced pinned above it, and a dot on every row it touched. Click a file to open it; the conversation makes room rather than being covered. |
 
 ## Install
 

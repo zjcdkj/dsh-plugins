@@ -12,7 +12,7 @@
 | 插件 | npm | 做什么 |
 |---|---|---|
 | [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | 给纯文本模型装上眼睛。图片经 `ctx.llm` 交给视觉路由，回来的是文本，DeepSeek 继续当编码模型、千问只负责看图。它会自己找视觉路由，已经配过的 dsh 无需额外配置。 |
-| [session-resources](packages/session-resources) | [`dsh-plugin-session-resources`](https://www.npmjs.com/package/dsh-plugin-session-resources) | 一个会话动过什么的账本：「资源」标签页列出它产出的文件和用作来源的文件，点一行即可打开。由工具的渲染意图折叠而来，不读磁盘；工作区之外的目录会被标出来。 |
+| [session-resources](packages/session-resources) | [`dsh-plugin-session-resources`](https://www.npmjs.com/package/dsh-plugin-session-resources) | 对话旁边的文件面板：会话工作区以目录树呈现、可逐层展开，本次会话产出的文件置顶，动过的每一行带一个圆点。点文件即打开；对话区会让出宽度而不是被盖住。 |
 
 ## 安装
 
