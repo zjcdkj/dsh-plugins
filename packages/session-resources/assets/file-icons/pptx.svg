@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PPTX 文件图标。视觉基准与同目录下 pdf.svg / docx.svg / xlsx.svg 一致：
+     米色纸底 + 折角 + 底部品牌色条 + 白字类型缩写。
+     底部品牌色 #B7472A 取自 Microsoft PowerPoint 官方图标主色，与
+     docx（#284C85 ≈ Word）/ xlsx（#247238 ≈ Excel）呼应，三件套在
+     列表里颜色一眼可辨。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 67 87" width="67" height="87">
+  <path fill="#E6E6DD" d="M47.4,0H2.5C1.2,0,0.2,1,0.2,3v82.5c0,0.5,1,1.6,2.3,1.6h62.1c1.2,0,2.3-1,2.3-1.6V20.2c0-1.1-0.1-1.4-0.4-1.7L48.4,0.4C48.1,0.1,47.8,0,47.4,0z"/>
+  <polygon fill="#D6D3C6" points="48.2,0.2 48.2,18.6 66.6,18.6"/>
+  <text x="33.5" y="47" text-anchor="middle" fill="#B7472A" font-family="Arial Black, Impact, 'Helvetica Neue', sans-serif" font-size="34" font-weight="900">P</text>
+  <path fill="#B7472A" d="M64.5,87H2.5C1.2,87,0.2,86,0.2,84.7V60.6h66.6v24.1C66.8,86,65.8,87,64.5,87z"/>
+  <text x="33.5" y="79" text-anchor="middle" fill="#FFFFFF" font-family="Arial Black, Impact, 'Helvetica Neue', sans-serif" font-size="14" font-weight="900" letter-spacing="0.5">PPT</text>
+</svg>

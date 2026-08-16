@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 纯文本文件图标。灰色 #646A73 与 FILE_TYPE_FAMILIES 里 text 族原本的
+     线性图标色一致，从"灰色线框"升级为"米色纸底 + 灰底彩条"，风格与其他
+     Office 类图标统一，但配色比 md/html 弱一档，暗示"通用文本"这层语义。
+     中间三条横线代表若干行文本，比大写 T 直觉。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 67 87" width="67" height="87">
+  <path fill="#E6E6DD" d="M47.4,0H2.5C1.2,0,0.2,1,0.2,3v82.5c0,0.5,1,1.6,2.3,1.6h62.1c1.2,0,2.3-1,2.3-1.6V20.2c0-1.1-0.1-1.4-0.4-1.7L48.4,0.4C48.1,0.1,47.8,0,47.4,0z"/>
+  <polygon fill="#D6D3C6" points="48.2,0.2 48.2,18.6 66.6,18.6"/>
+  <rect x="14" y="30" width="35" height="3" rx="1.5" fill="#646A73"/>
+  <rect x="14" y="38" width="30" height="3" rx="1.5" fill="#646A73"/>
+  <rect x="14" y="46" width="33" height="3" rx="1.5" fill="#646A73"/>
+  <path fill="#646A73" d="M64.5,87H2.5C1.2,87,0.2,86,0.2,84.7V60.6h66.6v24.1C66.8,86,65.8,87,64.5,87z"/>
+  <text x="33.5" y="79" text-anchor="middle" fill="#FFFFFF" font-family="Arial Black, Impact, 'Helvetica Neue', sans-serif" font-size="15" font-weight="900" letter-spacing="1">TXT</text>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTML 文件图标。基色 #E44D26 取自 HTML5 官方 shield 主色，视觉上与 pdf 的
+     Adobe 红有区分（PDF 偏暗红，HTML 偏亮橙红）。中间的 </> 符号是 web 类型
+     的通用图形语言。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 67 87" width="67" height="87">
+  <path fill="#E6E6DD" d="M47.4,0H2.5C1.2,0,0.2,1,0.2,3v82.5c0,0.5,1,1.6,2.3,1.6h62.1c1.2,0,2.3-1,2.3-1.6V20.2c0-1.1-0.1-1.4-0.4-1.7L48.4,0.4C48.1,0.1,47.8,0,47.4,0z"/>
+  <polygon fill="#D6D3C6" points="48.2,0.2 48.2,18.6 66.6,18.6"/>
+  <text x="33.5" y="45" text-anchor="middle" fill="#E44D26" font-family="Consolas, 'Courier New', monospace" font-size="20" font-weight="900">&lt;/&gt;</text>
+  <path fill="#E44D26" d="M64.5,87H2.5C1.2,87,0.2,86,0.2,84.7V60.6h66.6v24.1C66.8,86,65.8,87,64.5,87z"/>
+  <text x="33.5" y="79" text-anchor="middle" fill="#FFFFFF" font-family="Arial Black, Impact, 'Helvetica Neue', sans-serif" font-size="13" font-weight="900" letter-spacing="0.5">HTML</text>
+</svg>

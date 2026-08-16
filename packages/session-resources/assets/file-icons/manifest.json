@@ -1,0 +1,294 @@
+{
+  "derived_from": {
+    "package": "frontend-file-image-icons",
+    "generated_on": "2026-08-16",
+    "entry_component": "frontend/src/components/FileTypeIcon.vue",
+    "note": "Trimmed to the sections this plugin reads; packaged_as rewritten to the flat vendored layout."
+  },
+  "active_file_type_assets": [
+    {
+      "file": "docx.svg",
+      "packaged_as": "docx.svg"
+    },
+    {
+      "file": "html.svg",
+      "packaged_as": "html.svg"
+    },
+    {
+      "file": "jpg.svg",
+      "packaged_as": "jpg.svg"
+    },
+    {
+      "file": "json.svg",
+      "packaged_as": "json.svg"
+    },
+    {
+      "file": "md.svg",
+      "packaged_as": "md.svg"
+    },
+    {
+      "file": "pdf.svg",
+      "packaged_as": "pdf.svg"
+    },
+    {
+      "file": "pptx.svg",
+      "packaged_as": "pptx.svg"
+    },
+    {
+      "file": "txt.svg",
+      "packaged_as": "txt.svg"
+    },
+    {
+      "file": "xlsx.svg",
+      "packaged_as": "xlsx.svg"
+    }
+  ],
+  "file_type_families": [
+    {
+      "key": "pdf",
+      "asset": "pdf.svg",
+      "fallback": "FileText",
+      "extensions": [
+        "pdf"
+      ]
+    },
+    {
+      "key": "word",
+      "asset": "docx.svg",
+      "fallback": "FileText",
+      "extensions": [
+        "doc",
+        "docx",
+        "wps",
+        "odt"
+      ]
+    },
+    {
+      "key": "excel",
+      "asset": "xlsx.svg",
+      "fallback": "FileSpreadsheet",
+      "extensions": [
+        "xls",
+        "xlsx",
+        "csv",
+        "et",
+        "ods"
+      ]
+    },
+    {
+      "key": "ppt",
+      "asset": "pptx.svg",
+      "fallback": "Presentation",
+      "extensions": [
+        "ppt",
+        "pptx",
+        "dps",
+        "odp"
+      ]
+    },
+    {
+      "key": "svg",
+      "asset": null,
+      "fallback": "FileCode",
+      "extensions": [
+        "svg"
+      ]
+    },
+    {
+      "key": "image",
+      "asset": "jpg.svg",
+      "fallback": "FileImage",
+      "extensions": [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp",
+        "webp",
+        "tiff",
+        "tif",
+        "ico"
+      ]
+    },
+    {
+      "key": "audio",
+      "asset": null,
+      "fallback": "FileMusic",
+      "extensions": [
+        "mp3",
+        "wav",
+        "m4a",
+        "flac",
+        "aac",
+        "ogg",
+        "wma",
+        "amr"
+      ]
+    },
+    {
+      "key": "video",
+      "asset": null,
+      "fallback": "Film",
+      "extensions": [
+        "mp4",
+        "avi",
+        "mov",
+        "mkv",
+        "wmv",
+        "flv",
+        "webm",
+        "m4v",
+        "mpeg"
+      ]
+    },
+    {
+      "key": "archive",
+      "asset": null,
+      "fallback": "FileArchive",
+      "extensions": [
+        "zip",
+        "rar",
+        "7z",
+        "tar",
+        "gz",
+        "bz2",
+        "xz"
+      ]
+    },
+    {
+      "key": "data",
+      "asset": "json.svg",
+      "fallback": "Braces",
+      "extensions": [
+        "json",
+        "xml",
+        "yaml",
+        "yml",
+        "toml",
+        "ini"
+      ]
+    },
+    {
+      "key": "web",
+      "asset": "html.svg",
+      "fallback": "Globe",
+      "extensions": [
+        "html",
+        "htm",
+        "mhtml"
+      ]
+    },
+    {
+      "key": "ebook",
+      "asset": null,
+      "fallback": "BookOpen",
+      "extensions": [
+        "epub",
+        "mobi",
+        "azw3"
+      ]
+    },
+    {
+      "key": "code",
+      "asset": null,
+      "fallback": "FileCode",
+      "extensions": [
+        "js",
+        "ts",
+        "py",
+        "java",
+        "go",
+        "c",
+        "cpp",
+        "cs",
+        "php",
+        "rb",
+        "rs",
+        "sh",
+        "sql",
+        "vue"
+      ]
+    },
+    {
+      "key": "markdown",
+      "asset": "md.svg",
+      "fallback": "FileText",
+      "extensions": [
+        "md",
+        "markdown"
+      ]
+    },
+    {
+      "key": "text",
+      "asset": "txt.svg",
+      "fallback": "FileText",
+      "extensions": [
+        "txt",
+        "log",
+        "rtf"
+      ]
+    }
+  ],
+  "lucide_exports": [
+    {
+      "name": "BookOpen",
+      "version": "0.577.0",
+      "packaged_as": "BookOpen.svg"
+    },
+    {
+      "name": "Braces",
+      "version": "0.577.0",
+      "packaged_as": "Braces.svg"
+    },
+    {
+      "name": "File",
+      "version": "0.577.0",
+      "packaged_as": "File.svg"
+    },
+    {
+      "name": "FileArchive",
+      "version": "0.577.0",
+      "packaged_as": "FileArchive.svg"
+    },
+    {
+      "name": "FileCode",
+      "version": "0.577.0",
+      "packaged_as": "FileCode.svg"
+    },
+    {
+      "name": "FileImage",
+      "version": "0.577.0",
+      "packaged_as": "FileImage.svg"
+    },
+    {
+      "name": "FileMusic",
+      "version": "0.577.0",
+      "packaged_as": "FileMusic.svg"
+    },
+    {
+      "name": "FileSpreadsheet",
+      "version": "0.577.0",
+      "packaged_as": "FileSpreadsheet.svg"
+    },
+    {
+      "name": "FileText",
+      "version": "0.577.0",
+      "packaged_as": "FileText.svg"
+    },
+    {
+      "name": "Film",
+      "version": "0.577.0",
+      "packaged_as": "Film.svg"
+    },
+    {
+      "name": "Globe",
+      "version": "0.577.0",
+      "packaged_as": "Globe.svg"
+    },
+    {
+      "name": "Presentation",
+      "version": "0.577.0",
+      "packaged_as": "Presentation.svg"
+    }
+  ]
+}

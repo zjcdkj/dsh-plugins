@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-session-resources",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness out-of-tree plugin: a Resources tab listing the files one session produced and the files it consulted, folded from tool render intent rather than by scanning disk.",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness out-of-tree plugin: a file panel beside the conversation — the session's workspace as a tree, the files it produced pinned above, and a mark on every row it touched.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -12,6 +12,7 @@
   },
   "files": [
     "lib",
+    "assets",
     "cordis.patch.yml",
     "CHANGELOG.md",
     "README.md",
@@ -25,6 +26,7 @@
     "client": {
       "platform": "web",
       "inject": [
+        "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-conversation"
@@ -39,6 +41,9 @@
     "dsh",
     "dsh-plugin",
     "cordis",
+    "file-tree",
+    "file-explorer",
+    "workspace",
     "session",
     "artifacts",
     "deliverables",
