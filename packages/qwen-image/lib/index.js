@@ -45,6 +45,25 @@ const DEFAULT_QUESTION = '用中文描述这张图片的内容。如果图中有
 const PARENT_PATH_SEGMENT = /(?:^|[\\/])\.\.(?:[\\/]|$)/
 
 /**
+ * `LlmError.code` the llm service raises when a provider route has no adapter
+ * registered. Matched by code rather than by importing the error class: the
+ * code is the stable taxonomy the seam documents, and duck-typing keeps this
+ * package from depending on where that class currently lives.
+ */
+const NO_ADAPTER = 'NO_ADAPTER'
+
+/** The YAML a deployment with no vision route has to add, quoted in the failure. */
+const SETTINGS_EXAMPLE = `  llm-pi-ai:
+    providers:
+      dashscope:
+        apiKeyEnv: DASHSCOPE_API_KEY
+        api: openai-completions
+        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+        models:
+          - id: qwen3-vl-plus
+            input: [text, image]`
+
+/**
  * Resolution options for this call, anchoring a relative path to the CALLING
  * SESSION's workspace rather than the server's launch directory. Without the
  * `cwd`, `resolve` falls back to the provider default — which is the dsh
@@ -75,10 +94,10 @@ function sessionResolveOptions(exec, requestedPath) {
 export const Config = Schema.object({
   provider: Schema.string()
     .default('dashscope')
-    .description('视觉路由的 provider id（`llm-pi-ai` settings 段里的键名）。'),
+    .description('首选视觉路由的 provider id（`llm-pi-ai` settings 段里的键名）。该路由不可用时会自动改用任意已声明 `input: [text, image]` 的模型。'),
   model: Schema.string()
     .default('qwen3-vl-plus')
-    .description('视觉模型 id。该模型必须在配置里声明 `input: [text, image]`。'),
+    .description('首选视觉模型 id。该模型需声明 `input: [text, image]`；未声明或不存在时回退到自动发现。'),
   systemPrompt: Schema.string()
     .default('你是图像理解助手。只描述你确实看到的内容，不要推测。回答简洁、可直接被程序消费。')
     .description('发给视觉模型的 system 提示。'),
@@ -115,11 +134,119 @@ async function collectText(stream, signal) {
 }
 
 /**
+ * Whether a model entry declares image input.
+ *
+ * The seam documents `inputModalities` as absent meaning UNKNOWN while an
+ * explicit omission is negative capability — so only a declared `image`
+ * counts. Treating "unknown" as capable would send the bytes to a route that
+ * cannot take them and surface as a provider 400 instead of a config problem.
+ * @param {{ inputModalities?: readonly string[] }} info - resolved or listed model metadata.
+ * @returns {boolean} true when the model states it accepts images.
+ */
+function acceptsImage(info) {
+  return info.inputModalities !== undefined && info.inputModalities.includes('image')
+}
+
+/**
+ * Scan every registered provider for models that declare image input.
+ *
+ * This is what makes the plugin work without configuration: a deployment that
+ * already reached a vision model for any other reason needs no settings edit
+ * here. First registered wins, so the order is the deployment's own.
+ * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context.
+ * @param {AbortSignal | undefined} signal - caller cancellation.
+ * @returns {Promise<{ route?: { provider: string, model: string }, seen: string[], providers: string[] }>}
+ *   the first usable route when one exists, every vision route found, and every provider id scanned.
+ */
+async function discoverVisionRoute(ctx, signal) {
+  const providers = ctx.llm.listProviders()
+  const seen = []
+  let route
+  for (const provider of providers) {
+    signal?.throwIfAborted()
+    let models
+    try {
+      models = await ctx.llm.listModels(provider.id)
+    } catch {
+      // One provider whose listing fails — expired credential, unreachable
+      // gateway, adapter bug — must not take the whole scan down with it.
+      continue
+    }
+    for (const model of models) {
+      if (!acceptsImage(model)) continue
+      seen.push(`${provider.id}/${model.id}`)
+      route ??= { provider: provider.id, model: model.id }
+    }
+  }
+  return { route, seen, providers: providers.map(provider => provider.id) }
+}
+
+/**
+ * Pick the vision route for this deployment: the configured one when it accepts
+ * images, otherwise the first discovered one.
+ *
+ * Both misses are treated the same way on purpose. A provider that is not
+ * registered raises `NO_ADAPTER`, and a registered provider whose model never
+ * declared `input: [text, image]` resolves without modalities — from the user's
+ * side those are one situation ("the route I named is not usable"), and the
+ * remedy is the same.
+ * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context.
+ * @param {{ provider: string, model: string }} config - the preferred route.
+ * @param {AbortSignal | undefined} signal - caller cancellation.
+ * @returns {Promise<{ provider: string, model: string }>} a route that declares image input.
+ */
+async function resolveVisionRoute(ctx, config, signal) {
+  let configuredProblem
+  try {
+    const info = await ctx.llm.resolveModelInfo(config.provider, config.model, signal)
+    if (acceptsImage(info)) return { provider: config.provider, model: config.model }
+    configuredProblem = 'does not declare image input'
+  } catch (error) {
+    // Any other failure is the llm service reporting something real (aborted,
+    // invalid metadata) and belongs to the caller, not to this fallback.
+    if (error?.code !== NO_ADAPTER) throw error
+    configuredProblem = 'is not a registered provider route'
+  }
+
+  const found = await discoverVisionRoute(ctx, signal)
+  if (found.route !== undefined) {
+    ctx.logger.info(
+      `qwen-image: the configured route "${config.provider}/${config.model}" ${configuredProblem}; `
+      + `using "${found.route.provider}/${found.route.model}" instead `
+      + `(vision routes found: ${found.seen.join(', ')})`,
+    )
+    return found.route
+  }
+
+  throw new Error(
+    `qwen_image: no vision route is available.\n`
+    + `The configured route "${config.provider}/${config.model}" ${configuredProblem}, `
+    + `and no model on any registered provider declares image input.\n`
+    + `Providers scanned: ${found.providers.length === 0 ? '(none registered)' : found.providers.join(', ')}\n`
+    + `Declare a vision model in the llm-pi-ai section of settings.yaml:\n\n${SETTINGS_EXAMPLE}\n\n`
+    + `\`input: [text, image]\` is the line that makes the model usable here — a model that omits it `
+    + `is reported as not accepting images. Put the key in .credentials.yaml as DASHSCOPE_API_KEY, `
+    + `or point this plugin at an existing vision route with config.provider / config.model.`,
+  )
+}
+
+/**
  * Register the tool.
  * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context.
  * @param {ReturnType<typeof Config>} config - resolved configuration.
  */
 export function apply(ctx, config) {
+  /**
+   * Route resolved for this provider topology. Discovery costs one `listModels`
+   * per provider — a network call on a gateway adapter — so it must not run per
+   * tool call. The cache is invalidated by the seam's own topology event rather
+   * than by a timer, so adding a vision provider mid-session takes effect at
+   * the next call and no staleness window exists.
+   * @type {{ provider: string, model: string } | undefined}
+   */
+  let resolvedRoute
+  ctx.on('llm/adapters-updated', () => { resolvedRoute = undefined })
+
   ctx.tools.register(defineTool({
     name: 'qwen_image',
     description:
@@ -179,17 +306,11 @@ export function apply(ctx, config) {
         throw new Error(`qwen_image: ${mediaType} images are not accepted by this deployment`)
       }
 
-      // Gate on the CONFIGURED route, not the session's: the point of this tool
-      // is that the calling model need not accept images. Checking before any
-      // I/O keeps a misconfiguration from writing an attachment first.
-      const route = await ctx.llm.resolveModelInfo(config.provider, config.model, exec.signal)
-      if (route.inputModalities === undefined || !route.inputModalities.includes('image')) {
-        throw new Error(
-          `qwen_image: route "${config.provider}/${config.model}" does not declare image input. `
-          + `Add \`input: [text, image]\` to that model in the llm-pi-ai settings section, `
-          + `or point this plugin at a vision route with \`config.provider\`/\`config.model\`.`,
-        )
-      }
+      // Gate on the VISION route, not the session's: the point of this tool is
+      // that the calling model need not accept images. Resolving before any I/O
+      // keeps a misconfiguration from writing an attachment first.
+      resolvedRoute ??= await resolveVisionRoute(ctx, config, exec.signal)
+      const route = resolvedRoute
 
       const target = await ctx.fs.resolve(requested, sessionResolveOptions(exec, requested))
       const byteCap = Math.min(attachments.imageLimits.maxImageBytes, attachments.imageLimits.maxMessageImageBytes)
@@ -211,8 +332,8 @@ export function apply(ctx, config) {
       })]
 
       const description = await collectText(ctx.llm.stream({
-        provider: config.provider,
-        model: config.model,
+        provider: route.provider,
+        model: route.model,
         messages,
         system: config.systemPrompt,
         maxTokens: config.maxOutputTokens,
@@ -220,9 +341,9 @@ export function apply(ctx, config) {
       }), exec.signal)
 
       if (description === '') {
-        throw new Error(`qwen_image: "${config.model}" returned no text for "${target.displayPath}"`)
+        throw new Error(`qwen_image: "${route.model}" returned no text for "${target.displayPath}"`)
       }
-      return { path: target.displayPath, model: config.model, description }
+      return { path: target.displayPath, model: route.model, description }
     },
   }))
 }
