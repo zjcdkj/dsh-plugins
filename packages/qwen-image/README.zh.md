@@ -12,7 +12,7 @@
 dsh plugin --profile web add -w dsh-plugin-qwen-image
 ```
 
-![在 DeepSeek 会话里用 qwen_image 读一张幻灯片](https://raw.githubusercontent.com/zjcdkj/dsh-plugin-qwen-image/main/assets/demo.png)
+![在 DeepSeek 会话里用 qwen_image 读一张幻灯片](https://raw.githubusercontent.com/zjcdkj/dsh-plugins/main/packages/qwen-image/assets/demo.png)
 
 ## 为什么不用内置的 `read_image`
 

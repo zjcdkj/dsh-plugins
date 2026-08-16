@@ -41,12 +41,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zjcdkj/dsh-plugin-qwen-image.git"
+    "url": "git+https://github.com/zjcdkj/dsh-plugins.git",
+    "directory": "packages/qwen-image"
   },
   "bugs": {
-    "url": "https://github.com/zjcdkj/dsh-plugin-qwen-image/issues"
+    "url": "https://github.com/zjcdkj/dsh-plugins/issues"
   },
-  "homepage": "https://github.com/zjcdkj/dsh-plugin-qwen-image#readme",
+  "homepage": "https://github.com/zjcdkj/dsh-plugins/tree/main/packages/qwen-image#readme",
   "publishConfig": {
     "access": "public"
   },

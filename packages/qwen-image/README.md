@@ -12,7 +12,7 @@ English | [中文](README.zh.md)
 dsh plugin --profile web add -w dsh-plugin-qwen-image
 ```
 
-![qwen_image reading a slide inside a DeepSeek session](https://raw.githubusercontent.com/zjcdkj/dsh-plugin-qwen-image/main/assets/demo.png)
+![qwen_image reading a slide inside a DeepSeek session](https://raw.githubusercontent.com/zjcdkj/dsh-plugins/main/packages/qwen-image/assets/demo.png)
 
 ## Why this instead of `read_image`
 
