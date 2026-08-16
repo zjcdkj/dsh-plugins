@@ -1,62 +1,22 @@
 {
-  "name": "dsh-plugin-qwen-image",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness out-of-tree plugin: give a text-only coding model eyes by routing images to a Qwen-VL (DashScope) route through ctx.llm and returning text.",
-  "type": "module",
-  "main": "./lib/index.js",
-  "exports": {
-    ".": "./lib/index.js",
-    "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib",
-    "assets",
-    "cordis.patch.yml",
-    "README.md",
-    "README.zh.md",
-    "LICENSE"
-  ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
-  },
-  "keywords": [
-    "deepseek-harness",
-    "dsh",
-    "dsh-plugin",
-    "cordis",
-    "qwen",
-    "qwen-vl",
-    "dashscope",
-    "vision",
-    "ocr",
-    "multimodal",
-    "text-only-llm",
-    "image-to-text",
-    "coding-agent"
-  ],
-  "author": "zjcdkj",
+  "name": "dsh-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeepSeek Harness plugins by zjcdkj — each package under packages/ installs on its own through dsh plugin add.",
   "license": "MIT",
+  "author": "zjcdkj",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zjcdkj/dsh-plugin-qwen-image.git"
+    "url": "git+https://github.com/zjcdkj/dsh-plugins.git"
   },
   "bugs": {
-    "url": "https://github.com/zjcdkj/dsh-plugin-qwen-image/issues"
+    "url": "https://github.com/zjcdkj/dsh-plugins/issues"
   },
-  "homepage": "https://github.com/zjcdkj/dsh-plugin-qwen-image#readme",
-  "publishConfig": {
-    "access": "public"
-  },
+  "homepage": "https://github.com/zjcdkj/dsh-plugins#readme",
   "engines": {
     "node": ">=20"
   },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.0-rc.5",
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.5",
-    "@deepseek-ai/schemastery": "^3.18.1"
-  }
+  "workspaces": [
+    "packages/*"
+  ]
 }
