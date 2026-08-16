@@ -155,15 +155,14 @@ function acceptsImage(info) {
  * here. First registered wins, so the order is the deployment's own.
  * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context.
  * @param {AbortSignal | undefined} signal - caller cancellation.
- * @returns {Promise<{ route?: { provider: string, model: string }, seen: string[], providers: string[] }>}
- *   the first usable route when one exists, every vision route found, and every provider id scanned.
+ * @returns {Promise<{ route?: { provider: string, model: string }, scanned: string[] }>}
+ *   the first usable route when one exists, and the provider ids visited.
  */
 async function discoverVisionRoute(ctx, signal) {
-  const providers = ctx.llm.listProviders()
-  const seen = []
-  let route
-  for (const provider of providers) {
+  const scanned = []
+  for (const provider of ctx.llm.listProviders()) {
     signal?.throwIfAborted()
+    scanned.push(provider.id)
     let models
     try {
       models = await ctx.llm.listModels(provider.id)
@@ -172,13 +171,14 @@ async function discoverVisionRoute(ctx, signal) {
       // gateway, adapter bug — must not take the whole scan down with it.
       continue
     }
-    for (const model of models) {
-      if (!acceptsImage(model)) continue
-      seen.push(`${provider.id}/${model.id}`)
-      route ??= { provider: provider.id, model: model.id }
-    }
+    const found = models.find(acceptsImage)
+    // Stop at the first hit. Listing a provider is a network call on a gateway
+    // adapter, so enumerating the rest would buy nothing but a longer log line.
+    // The failure branch still sees every provider: reaching it means no
+    // provider had a hit, so the loop ran to completion.
+    if (found !== undefined) return { route: { provider: provider.id, model: found.id }, scanned }
   }
-  return { route, seen, providers: providers.map(provider => provider.id) }
+  return { scanned }
 }
 
 /**
@@ -212,8 +212,7 @@ async function resolveVisionRoute(ctx, config, signal) {
   if (found.route !== undefined) {
     ctx.logger.info(
       `qwen-image: the configured route "${config.provider}/${config.model}" ${configuredProblem}; `
-      + `using "${found.route.provider}/${found.route.model}" instead `
-      + `(vision routes found: ${found.seen.join(', ')})`,
+      + `using "${found.route.provider}/${found.route.model}" instead`,
     )
     return found.route
   }
@@ -222,7 +221,7 @@ async function resolveVisionRoute(ctx, config, signal) {
     `qwen_image: no vision route is available.\n`
     + `The configured route "${config.provider}/${config.model}" ${configuredProblem}, `
     + `and no model on any registered provider declares image input.\n`
-    + `Providers scanned: ${found.providers.length === 0 ? '(none registered)' : found.providers.join(', ')}\n`
+    + `Providers scanned: ${found.scanned.length === 0 ? '(none registered)' : found.scanned.join(', ')}\n`
     + `Declare a vision model in the llm-pi-ai section of settings.yaml:\n\n${SETTINGS_EXAMPLE}\n\n`
     + `\`input: [text, image]\` is the line that makes the model usable here — a model that omits it `
     + `is reported as not accepting images. Put the key in .credentials.yaml as DASHSCOPE_API_KEY, `
