@@ -1,0 +1,32 @@
+# dsh-plugin-qwen-image bundle patch
+#
+# Adds the `qwen_image` tool to the composition. The tool needs a vision route
+# already declared in the `llm-pi-ai` settings section, for example:
+#
+#   llm-pi-ai:
+#     providers:
+#       dashscope:
+#         apiKeyEnv: DASHSCOPE_API_KEY
+#         api: openai-completions
+#         baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+#         models:
+#           - id: qwen3-vl-plus
+#             input: [text, image]        # <- what makes the model usable here
+#
+# To change the route for a deployment, edit the profile's own
+# cordis.patch.yml and OVERRIDE this row by id — do NOT `insert` it again.
+# This bundle layer already inserted `qwen-image`, and a second insert of the
+# same id fails the boot with "duplicate loader entry id":
+#
+#   - id: qwen-image
+#     name: dsh-plugin-qwen-image
+#     config:
+#       provider: dashscope
+#       model: qwen3-vl-plus
+#
+# `config` replaces the row's config wholesale (it is not a deep merge), so
+# spell out every field you want to depart from the defaults below.
+#
+- insert:
+    - id: qwen-image
+      name: 'dsh-plugin-qwen-image'
