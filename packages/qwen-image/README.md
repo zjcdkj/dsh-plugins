@@ -134,9 +134,9 @@ Installing from a local checkout needs the `file:` prefix:
 dsh plugin --profile web add -w "file:/path/to/dsh-plugins/packages/qwen-image"
 ```
 
-**A bare path breaks peer resolution.** A bare directory path takes pnpm's `link:` semantics and installs a symlink. Node resolves peers from the **real** path, walking up from your checkout instead of the profile, and the plugin fails to load with `Cannot find package '@deepseek-ai/schemastery'`. `file:` is copy semantics: the package lands inside the profile's `node_modules`, so parent-walk reaches `$DSH_HOME/profiles/node_modules`, the installation-level fallback.
+**A bare path breaks peer resolution.** A bare directory path takes pnpm's `link:` semantics and installs a symlink. Node resolves peers from the **real** path, walking up from your checkout instead of the profile, and the plugin fails to load with `Cannot find package '@deepseek-ai/schemastery'`. `file:` puts the package inside the profile's `node_modules` tree instead — the directory is a junction into pnpm's store, and each file in it is a hard link to the file in your checkout — so parent-walk reaches `$DSH_HOME/profiles/node_modules`, the installation-level fallback.
 
-After editing the source, refresh that copy:
+After adding or deleting a file, re-link:
 
 ```sh
 dsh plugin --profile web install

@@ -134,9 +134,9 @@ DASHSCOPE_API_KEY: sk-...
 dsh plugin --profile web add -w "file:/path/to/dsh-plugins/packages/qwen-image"
 ```
 
-**别用裸路径。** 裸目录路径走 pnpm 的 `link:` 语义，装出来是个符号链接；Node 按**真实路径**向上找 `node_modules`，于是走不到 profile 的 peer 目录，插件加载时报 `Cannot find package '@deepseek-ai/schemastery'`。`file:` 是拷贝语义，包落在 profile 的 `node_modules` 内，peer 解析才能命中 `$DSH_HOME/profiles/node_modules` 这个安装级回退目录。
+**别用裸路径。** 裸目录路径走 pnpm 的 `link:` 语义，装出来是个符号链接；Node 按**真实路径**向上找 `node_modules`，于是走不到 profile 的 peer 目录，插件加载时报 `Cannot find package '@deepseek-ai/schemastery'`。`file:` 则把包放进 profile 的 `node_modules` 树内（目录是指向 pnpm 存储的 junction，里面每个文件是指向你检出目录的硬链接），peer 解析才能沿父目录命中 `$DSH_HOME/profiles/node_modules` 这个安装级回退目录。
 
-本地改完源码后刷新那份拷贝：
+新增或删除文件后重新链接（就地编辑现有文件不需要，硬链接会同时到达）：
 
 ```sh
 dsh plugin --profile web install
