@@ -1,0 +1,20 @@
+# dsh-plugin-session-resources bundle patch
+#
+# Adds the Resources tab to the Web conversation view. The whole feature is
+# browser-side: this row exists so the package can be composed into a profile
+# and so `dsh.client` is reached, and its host half deliberately does nothing.
+#
+# There is no configuration. The inventory is folded from tool render intent
+# already present in the session log, so nothing has to be declared and no
+# request is ever sent.
+#
+# To remove the tab without uninstalling, override this row by id in the
+# profile's own cordis.patch.yml — do NOT `insert` it again, since a second
+# insert of the same id fails the boot with "duplicate loader entry id":
+#
+#   - id: session-resources
+#     disabled: true
+#
+- insert:
+    - id: session-resources
+      name: 'dsh-plugin-session-resources'
