@@ -11,7 +11,7 @@
 
 | 插件 | npm | 做什么 |
 |---|---|---|
-| [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | 给纯文本模型装上眼睛。图片经 `ctx.llm` 交给单独配置的 Qwen-VL 路由，回来的是文本，DeepSeek 继续当编码模型、千问只负责看图。 |
+| [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | 给纯文本模型装上眼睛。图片经 `ctx.llm` 交给视觉路由，回来的是文本，DeepSeek 继续当编码模型、千问只负责看图。它会自己找视觉路由，已经配过的 dsh 无需额外配置。 |
 
 ## 安装
 

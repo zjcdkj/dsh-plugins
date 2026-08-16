@@ -11,7 +11,7 @@ Plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
 | Plugin | npm | What it does |
 |---|---|---|
-| [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | Gives a text-only coding model eyes. A local image goes to a separately configured Qwen-VL route through `ctx.llm` and comes back as text, so DeepSeek keeps driving the session while Qwen does the looking. |
+| [qwen-image](packages/qwen-image) | [`dsh-plugin-qwen-image`](https://www.npmjs.com/package/dsh-plugin-qwen-image) | Gives a text-only coding model eyes. A local image goes to a vision route through `ctx.llm` and comes back as text, so DeepSeek keeps driving the session while Qwen does the looking. It finds a vision route on its own, so a dsh that already reaches one needs no configuration. |
 
 ## Install
 

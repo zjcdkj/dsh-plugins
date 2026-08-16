@@ -1,7 +1,10 @@
 # dsh-plugin-qwen-image bundle patch
 #
-# Adds the `qwen_image` tool to the composition. The tool needs a vision route
-# already declared in the `llm-pi-ai` settings section, for example:
+# Adds the `qwen_image` tool to the composition. The tool needs one model that
+# accepts images. It prefers the route named in its config and otherwise takes
+# the first model on any registered provider that declares image input, so a
+# deployment already reaching a vision model needs nothing here. To declare one,
+# add it to the `llm-pi-ai` settings section, for example:
 #
 #   llm-pi-ai:
 #     providers:
