@@ -34,7 +34,12 @@ dsh plugin --profile desktop add -w dsh-plugin-session-resources
 
 These hold for every package in this repository:
 
-- **Public seams only.** Plugins touch `ctx.tools`, `ctx.llm`, `ctx.fs`, `ctx.attachments` and friends — never harness internals. Installing one into a profile needs no change to the harness and no desktop rebuild.
+- **Not one line of upstream changes.** Public seams only — `ctx.tools`, `ctx.llm`, `ctx.fs`, `ctx.attachments`, `ctx.slots`, `ctx.connection.rpc`. Installing one into a profile needs no change to the harness and no desktop rebuild.
+
+  **"Changes nothing upstream" is not the same as "you cannot tell it is there", and the two differ sharply on that** — worth saying plainly rather than glossing:
+
+  - `qwen-image` adds one model-facing tool and **touches no pixel of the interface**. Not calling it is indistinguishable from not installing it.
+  - `session-resources` adds a button to the session header and makes the conversation body give up width — its stylesheet does land on one of the app's own nodes, found by the `data-conversation-scroll` attribute the app puts there on purpose rather than by a class name that changes with every build. **The header never moves**: the title row, the conversation tabs and `Session log` sit at the same pixel whether the panel is open or closed, and only the scrolling body below the rule makes room.
 - **No build step.** Host halves are pure ESM, so the harness's own cordis instance is shared rather than duplicated. Browser halves are hand-written plain JS loaded through the app's own module loader, so shipping UI costs no bundler and no build authorization either.
 - **Peer range starts at `^0.1.0-rc.5`.** Plugins load on rc.5 and rc.6 alike, including desktop shells still pinned to rc.5.
 - **Bilingual docs.** Every package carries `README.md` and `README.zh.md`.
@@ -52,7 +57,19 @@ Install a package straight from the checkout with the `file:` prefix — a bare 
 dsh plugin --profile web add -w "file:$PWD/packages/qwen-image"
 ```
 
-After editing a package, refresh that copy with `dsh plugin --profile web install`.
+pnpm links rather than copies: the package directory in the profile's
+`node_modules` is a junction into the store, and each file inside it is a **hard
+link to the file in your checkout**. Editing one in place therefore reaches every
+profile with no further step; **adding or deleting** a file is what needs a
+re-link, since a new file has no link yet:
+
+```sh
+dsh plugin --profile web install
+```
+
+A running app re-reads none of this. The browser picks up a client change on
+reload, the host half is loaded once at boot, and the desktop shell loads both at
+startup.
 
 ## License
 
