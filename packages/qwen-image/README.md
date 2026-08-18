@@ -85,6 +85,14 @@ The boundaries, stated plainly:
 
 Every stored filename is generated **by the host**: a caller supplies bytes and a media type, never a path or a name, so the channel has no traversal surface. On top of that it is `authority: 'loopback'`, so only a page on this machine can call it. Byte caps come from `ctx.attachments.imageLimits`, so an image accepted here is one the vision request can actually carry.
 
+If the workspace is a git repository, add this line to `.gitignore` and pasted screenshots stay out of `git status`:
+
+```gitignore
+.dsh-pasted/
+```
+
+Inside the workspace rather than a temp directory, so the model receives a path it can hand to any other tool, `ctx.fs` reads it without a sandbox exception, and you can see and delete what accumulated.
+
 CLI and headless deployments are unaffected: `connection`, `sessions` and `systemPrompt` are optional children, so with no browser you get the tool and no paste path.
 
 ## The tool the model sees

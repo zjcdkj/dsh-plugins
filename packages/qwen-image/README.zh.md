@@ -85,6 +85,14 @@ DASHSCOPE_API_KEY: sk-...
 
 存下来的文件名**完全由宿主生成**：调用方只能给字节和媒体类型，给不了路径也给不了文件名，所以这条通道没有路径穿越面。在此之上它还是 `authority: 'loopback'`，只有本机页面能调。单图字节上限取自 `ctx.attachments.imageLimits`，所以这里收下的图，后面那次视觉请求一定装得下。
 
+工作区是 git 仓库的话，把这一行加进 `.gitignore`，粘贴的截图就不会出现在 `git status` 里：
+
+```gitignore
+.dsh-pasted/
+```
+
+放在工作区内而不是临时目录，是为了让模型拿到一个能转手给别的工具的路径、让 `ctx.fs` 不需要沙箱例外就能读、也让你看得见并能自己删掉攒下来的东西。
+
 CLI 或无头部署不受影响：`connection`、`sessions`、`systemPrompt` 都是可选子，没有浏览器就只有工具本身，没有粘贴这一路。
 
 ## 模型可见的工具
