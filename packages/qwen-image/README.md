@@ -6,7 +6,7 @@
 
 English | [中文](README.zh.md)
 
-**Give a text-only coding model eyes.** A local image goes to a vision route and comes back as **text**, so DeepSeek keeps driving the session while Qwen does the looking.
+**Give a text-only coding model eyes.** An image goes to a vision route and comes back as **text**, so DeepSeek keeps driving the session while Qwen does the looking. **Pasting a screenshot into the composer works too** — and not one character of your draft is touched.
 
 ```sh
 dsh plugin --profile web add -w dsh-plugin-qwen-image
@@ -28,7 +28,7 @@ To update later:
 dsh plugin --profile web update dsh-plugin-qwen-image
 ```
 
-That reaches releases inside the range the install wrote, and needs no `-w`. On a `0.x` version npm's caret stops below the next minor, so `^0.2.0` picks up `0.2.x` but not `0.3.0` — crossing a minor means running the install command again. [CHANGELOG.md](CHANGELOG.md) records what each release changed.
+That reaches releases inside the range the install wrote, and needs no `-w`. On a `0.x` version npm's caret stops below the next minor, so `^0.3.0` picks up `0.3.x` but not `0.4.0` — crossing a minor means running the install command again. [CHANGELOG.md](CHANGELOG.md) records what each release changed.
 
 ## A vision route
 
@@ -64,11 +64,36 @@ DASHSCOPE_API_KEY: sk-...
 
 When no model anywhere declares image input, the call fails with the route it looked for, every provider it scanned, and the block to add — not a bare error code.
 
+## Pasting a screenshot
+
+**Paste it or drop it in, then just ask.**
+
+Without this plugin that fails, and it fails late: the app accepts the image into its own rail, you send, and the Host refuses the whole request — *"Model … does not support image input"*. The image was never the problem; putting it in the conversation was.
+
+So the paste is taken before the app sees it. The bytes are saved under `<workspace>/.dsh-pasted/` and the runtime context states that an image is waiting. **The conversation still carries no image part, which is exactly why the request goes through.**
+
+A "waiting to be read" strip appears above the composer with a thumbnail and a dismiss button. When nothing is waiting, the strip is **not there at all**.
+
+The boundaries, stated plainly:
+
+- **It does not write to the composer.** No injected path, no typing on your behalf. The draft holds only what you wrote.
+- **A mixed paste works too.** The image goes to the channel and the text is handed **straight back** to the app, so it behaves like pasting either one alone.
+- **Only the composer.** A paste into the session search field is untouched, and so is a text-only paste anywhere.
+- **An unreachable channel means no interception at all.** The browser half probes first, and until that succeeds — and forever, on a deployment with no host half — the app's native paste is exactly as it was. Cancelling a paste it could not complete would destroy the clipboard for nothing.
+- **Reading it clears the reminder but keeps the file.** After the model looks, the image leaves the waiting list while the file stays in the workspace: you can still open it and the model can pass the same path again. Only the dismiss button deletes it.
+- At most 8 images per session and 64 sessions tracked; eviction removes the file too.
+
+Every stored filename is generated **by the host**: a caller supplies bytes and a media type, never a path or a name, so the channel has no traversal surface. On top of that it is `authority: 'loopback'`, so only a page on this machine can call it. Byte caps come from `ctx.attachments.imageLimits`, so an image accepted here is one the vision request can actually carry.
+
+CLI and headless deployments are unaffected: `connection`, `sessions` and `systemPrompt` are optional children, so with no browser you get the tool and no paste path.
+
 ## The tool the model sees
 
-`qwen_image(file_path, question?)`
+`qwen_image(file_path?, question?)`
 
 PNG / JPEG / WebP / GIF. Omit `question` for a general description plus a verbatim transcription of any text in the image. A relative `file_path` resolves against the **calling session's workspace**, not the server's launch directory.
+
+**`file_path` may be omitted** — it then reads the most recently pasted image in this session. Omitting it with nothing waiting fails, and says so.
 
 It returns the resolved path, the vision model that answered, and that model's text.
 
@@ -106,8 +131,10 @@ Do not write another `insert:` — inserting the same id twice fails the boot wi
 
 ## Known limits
 
-- **Local paths only.** No URLs, no clipboard data; save a remote image to disk first.
+- **No URLs.** Save a remote image to disk first (pasting and dropping are supported, see above).
 - **One image per call.** Call again for more.
+- **The waiting list is in memory.** A Host restart loses it — the bytes are still on disk, but the "an image is waiting" reminder stops appearing. That costs a re-paste, and buys not writing into a session log this plugin does not own.
+- **The strip clears a few seconds late.** The browser half learns that the host has read an image by polling (only while something waits, stopping as soon as the list empties), so there is a short gap between the model looking and the chip going.
 - **No retries.** A transient failure on the vision route propagates as-is; retry policy belongs to that route's own `retryPolicy`.
 - **Byte caps come from the deployment.** The per-image cap is the smaller of the two bounds in `ctx.attachments.imageLimits`; this plugin sets no threshold of its own.
 - **A route that stops working is noticed at the next topology change.** The resolved route is cached until the harness reports that providers changed, so revoking a credential surfaces as that provider's own failure rather than an automatic switch.
@@ -125,6 +152,14 @@ Do not write another `insert:` — inserting the same id twice fails the boot wi
 **Relative paths anchor to the session workspace.** Resolution carries `exec.agent.session.header.cwd` (canonicalized when `..` is involved), matching the in-box filesystem tools. Without it, `slide_05.png` resolves against the dsh process cwd.
 
 **It declares `kind: 'read'` and `locations`.** A resource or deliverables surface can then count the image as a source without knowing this tool's name.
+
+**The paste is claimed in the browser, not rewritten in the host.** There is no seam for the latter: `intercept('/api', …)` is a single global seat already held by the API gateway, and no hook exists to rewrite message content before submit. In the browser it takes only a capture-phase listener — the app's own handling is a React `onPaste` on the textarea plus a document-level `drop`, both later than capture.
+
+**Runtime context, not a prompt section.** "An image is waiting" is a fact about right now, not a persona: the harness re-states it each assembly and supersedes it with the next snapshot, so when the waiting list empties the text disappears on its own.
+
+**One global registration, different content per session.** `AssembleContext` carries the `agent` for that assembly, so the `text` function reads `context.agent.id` and looks up that session's list — no need to watch `agent/created` and register once per session.
+
+**Not writing to the composer is a hard constraint.** The other way to make pasting "work" is to save the file and inject a path line into the draft (no image part in the message, so the Host's gate never fires). This plugin does not do that: the composer is yours. The text half of a mixed paste is handed back for the same reason — those characters are your own clipboard contents, going where you aimed them.
 
 ## Development
 

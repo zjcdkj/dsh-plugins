@@ -9,19 +9,57 @@
  * instead of the built-in `read_image`, which puts the image into the session's
  * own route and therefore refuses unless that route accepts images.
  *
+ * The second half of the same idea is PASTING. Dropping or pasting an image into
+ * the composer normally fails on such a deployment, and it fails late: the app
+ * accepts the image, and the Host then refuses the whole request because the
+ * session's model does not declare image input. So the browser half stops that
+ * paste before the app sees it and hands the bytes here, this half saves them
+ * inside the session workspace, and a runtime-context snapshot tells the model
+ * an image is waiting and how to read it. The conversation still carries no
+ * image part, which is exactly why the request goes through.
+ *
  * Everything it touches is a public seam — `ctx.tools`, `ctx.llm`, `ctx.fs`,
- * `ctx.attachments` — so the plugin installs into a profile and needs no change
- * to the harness itself.
+ * `ctx.attachments`, `ctx.systemPrompt`, `ctx.connection.rpc` — so the plugin
+ * installs into a profile and needs no change to the harness itself. The last
+ * three are optional children: a CLI-only or headless composition gets the tool
+ * without the paste path, because there is no browser to paste from.
  */
 
 import { realpathSync } from 'node:fs'
-import { basename, extname } from 'node:path'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { basename, extname, join } from 'node:path'
 import Schema from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 
 /** Cordis plugin name; also the id this plugin's patch row uses. */
 export const name = 'qwen-image'
+
+/**
+ * The channel the browser half stashes pasted images on.
+ *
+ * One segment, matching the pattern both halves enforce; it carries the package
+ * name because a duplicate prefix route fails the boot rather than shadowing.
+ *
+ * A channel of this plugin's own is the only seam available. The app's composer
+ * hands a pasted image to its own image rail, and the Host then REFUSES the
+ * request when the session's model does not declare image input — which is
+ * exactly the deployment this plugin exists for. The one reserved alternative,
+ * `intercept('/api', …)`, is a single global seat already held by the API
+ * gateway. So the browser half stops the paste before the app sees it and sends
+ * the bytes here instead.
+ */
+export const CHANNEL = '/dsh-qwen-image'
+
+/**
+ * Where a pasted image lands, relative to the session workspace.
+ *
+ * Inside the workspace rather than a temp directory, for three reasons: the
+ * model receives a path it can hand to any other tool, `ctx.fs` will read it
+ * without a sandbox exception, and the user can see and delete what accumulated.
+ * The leading dot keeps it out of the way of the files they came to work on.
+ */
+const STASH_DIR = '.dsh-pasted'
 
 /**
  * Required services. `attachments` is required rather than optional because an
@@ -38,6 +76,18 @@ const MEDIA_TYPES = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
 }
+
+/**
+ * The extension written for each accepted media type.
+ *
+ * Inverted from {@link MEDIA_TYPES} rather than written out again, so the set of
+ * types this plugin stashes cannot drift from the set it reads. Two extensions
+ * share `image/jpeg`; reversing before the fold lets the FIRST spelling declared
+ * above be the last one assigned, so `.jpg` wins over `.jpeg`.
+ */
+const EXTENSIONS = Object.fromEntries(
+  Object.entries(MEDIA_TYPES).reverse().map(([extension, mediaType]) => [mediaType, extension]),
+)
 
 const DEFAULT_QUESTION = '用中文描述这张图片的内容。如果图中有文字，请一并逐字转录。'
 
@@ -229,6 +279,331 @@ async function resolveVisionRoute(ctx, config, signal) {
   )
 }
 
+/** Most pasted images held per session; the oldest is dropped past this. */
+const MAX_PER_SESSION = 8
+
+/** Most sessions tracked at once, so a long-lived Host cannot grow without bound. */
+const MAX_SESSIONS = 64
+
+/**
+ * A filename for one stashed paste.
+ *
+ * Generated here rather than taken from the browser, and that is the whole
+ * containment story for this channel: the caller supplies bytes and a media
+ * type, never a path or a name, so there is no traversal to defend against. The
+ * name the user's clipboard carried is kept for DISPLAY only.
+ * @param {string} mediaType - one of {@link MEDIA_TYPES}' values.
+ * @returns {string} a sortable, collision-resistant basename with extension.
+ */
+function stashFileName(mediaType) {
+  const stamp = new Date().toISOString().replaceAll(':', '-').replace('.', '-').replace('Z', '')
+  const salt = Math.random().toString(36).slice(2, 6)
+  return `paste-${stamp}-${salt}${EXTENSIONS[mediaType]}`
+}
+
+/** Human byte size for the model-facing listing and the panel's tooltip. */
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Pasted images per session, awaiting a read.
+ *
+ * Kept in memory rather than in the session log because it is a HANDOFF, not a
+ * transcript fact: the bytes are already durable on disk, and what this holds is
+ * the short-lived knowledge that the user just supplied them and nobody has
+ * looked yet. Losing it to a Host restart costs a re-paste, which is the right
+ * price for not writing to a log this plugin does not own.
+ */
+class PasteStash {
+  constructor() {
+    /**
+     * Newest last, per session.
+     * @type {Map<string, Array<{ rel: string, abs: string, name: string, bytes: number }>>}
+     */
+    this.bySession = new Map()
+  }
+
+  /**
+   * @param {string | undefined} sessionId - the asking session.
+   * @returns {ReadonlyArray<object>} its waiting entries, newest last.
+   */
+  list(sessionId) {
+    if (sessionId === undefined) return []
+    return this.bySession.get(sessionId) ?? []
+  }
+
+  /**
+   * Record one stashed image, evicting what no longer fits.
+   * @param {string} sessionId - the session that pasted it.
+   * @param {object} entry - the stashed image's paths, display name and size.
+   * @returns {Promise<void>} after any eviction's file is removed.
+   */
+  async add(sessionId, entry) {
+    // Evict whole sessions before touching this one's list, so a busy Host
+    // forgets OTHER conversations rather than the paste being added right now.
+    if (!this.bySession.has(sessionId) && this.bySession.size >= MAX_SESSIONS) {
+      const oldest = this.bySession.keys().next()
+      if (!oldest.done) this.bySession.delete(oldest.value)
+    }
+    const entries = this.bySession.get(sessionId) ?? []
+    entries.push(entry)
+    while (entries.length > MAX_PER_SESSION) {
+      const evicted = entries.shift()
+      // The bytes were written by this plugin into its own directory, so
+      // removing them is safe; a failure is not worth reporting to the paster.
+      await rm(evicted.abs, { force: true }).catch(() => { })
+    }
+    this.bySession.set(sessionId, entries)
+  }
+
+  /**
+   * Forget one entry, optionally deleting the file with it.
+   * @param {string | undefined} sessionId - the owning session.
+   * @param {object | undefined} entry - the entry to forget.
+   * @param {boolean} unlink - whether the bytes go too (a user dismissal) or
+   *   stay on disk (a read, where the path remains useful).
+   * @returns {Promise<void>} after any deletion.
+   */
+  async forget(sessionId, entry, unlink) {
+    if (sessionId === undefined || entry === undefined) return
+    const entries = this.bySession.get(sessionId)
+    if (entries === undefined) return
+    const at = entries.indexOf(entry)
+    if (at >= 0) entries.splice(at, 1)
+    if (entries.length === 0) this.bySession.delete(sessionId)
+    if (unlink) await rm(entry.abs, { force: true }).catch(() => { })
+  }
+
+  /**
+   * Find the entry a path refers to, by either spelling it may arrive as.
+   * @param {string | undefined} sessionId - the owning session.
+   * @param {string} path - a workspace-relative or absolute path.
+   * @returns {object | undefined} the matching entry, when there is one.
+   */
+  find(sessionId, path) {
+    const normalized = path.replaceAll('\\', '/')
+    return this.list(sessionId).find(entry =>
+      entry.rel === normalized || entry.abs.replaceAll('\\', '/') === normalized)
+  }
+}
+
+/**
+ * The model-facing account of what is waiting.
+ *
+ * This is the piece that makes pasting WORK rather than merely be recorded. The
+ * bytes deliberately never enter the conversation — that is what keeps a
+ * text-only route from refusing the request — so without this the model has no
+ * way to know an image arrived at all, and would answer "you did not send me
+ * anything" to a user who plainly did.
+ *
+ * Written as runtime context rather than a prompt section because that is what
+ * it is: a fact about right now, which the harness re-states each assembly and
+ * supersedes with the next snapshot. When the list empties, the text empties and
+ * the snapshot stops mentioning images.
+ * @param {ReadonlyArray<object>} entries - the session's waiting images.
+ * @returns {string} the snapshot text, or `''` when nothing waits.
+ */
+function describePending(entries) {
+  if (entries.length === 0) return ''
+  const rows = entries.map((entry, index) =>
+    `${index + 1}. ${entry.rel} — ${entry.name} (${formatBytes(entry.bytes)})`).join('\n')
+  const which = entries.length === 1 ? 'it' : 'the most recent one'
+  return `The user pasted ${entries.length === 1 ? 'an image' : `${entries.length} images`} into the composer. `
+    + `The bytes are NOT in the conversation content — they were saved into this session's workspace, `
+    + `because your own model route may not accept images.\n\n${rows}\n\n`
+    + `To see ${which}, call \`qwen_image\` with no \`file_path\`. To pick a specific one, pass its path above. `
+    + `A pasted image stays listed here until it has been read, so treat this list as "waiting for you to look".`
+}
+
+/**
+ * The app's error vocabulary is a closed set and `details` is required per code.
+ * An invented code fails the browser's response parse and surfaces as a
+ * transport error instead of the message written here.
+ */
+const badRequest = message => ({ ok: false, error: { code: 'bad-request', message, details: { issues: [] } } })
+const unwritable = (message, path) => ({ ok: false, error: { code: 'directory-unreadable', message, details: { path } } })
+
+/** Byte cap for a paste when no attachment service states one. */
+const FALLBACK_BYTE_CAP = 10 * 1024 * 1024
+
+/** Longest display name kept from the clipboard, which supplies it. */
+const MAX_DISPLAY_NAME = 120
+
+/**
+ * Sanitize the clipboard's own filename down to something safe to DISPLAY.
+ *
+ * It never becomes part of a path — {@link stashFileName} owns that — so this
+ * only has to keep a hostile or malformed name from reaching a UI: separators
+ * out so it cannot read as a path, control characters out, and a length bound.
+ * @param {unknown} value - the `name` the browser reported, if any.
+ * @param {string} fallback - the generated name to use when nothing usable came.
+ * @returns {string} a display name.
+ */
+function displayName(value, fallback) {
+  if (typeof value !== 'string') return fallback
+  /* eslint-disable-next-line no-control-regex -- stripping controls is the point */
+  const cleaned = value.replaceAll(/[\u0000-\u001F\u007F/\\]/g, '').trim()
+  return cleaned === '' ? fallback : cleaned.slice(0, MAX_DISPLAY_NAME)
+}
+
+/**
+ * Serve the stash channel: the browser half's only way to hand over bytes.
+ *
+ * Fenced two ways, the same pair `session-resources` uses. `authority:
+ * 'loopback'` means only a page on this machine can call it at all. Inside that,
+ * the caller never names a file: it sends bytes plus a media type, and every
+ * path is composed here from the session's own workspace root and a generated
+ * basename. There is no input a `..` could ride in on.
+ * @param {import('@deepseek-ai/cordis').Context} ctx - context with `connection` and `sessions`.
+ * @param {PasteStash} stash - the per-session waiting list to record into.
+ */
+function installStashChannel(ctx, stash) {
+  /**
+   * The byte cap this deployment enforces, read at call time.
+   *
+   * The attachment service's own limits are used rather than a number of this
+   * plugin's own, so a paste that is accepted here is one the vision request can
+   * actually carry later.
+   * @returns {number} the smallest applicable cap.
+   */
+  function byteCap() {
+    const attachments = ctx.get('attachments')
+    if (attachments === undefined) return FALLBACK_BYTE_CAP
+    return Math.min(attachments.imageLimits.maxImageBytes, attachments.imageLimits.maxMessageImageBytes)
+  }
+
+  /**
+   * Where this session's workspace is.
+   *
+   * The Host's own record wins; a session reopened from history is cold, and
+   * `sessions.get` answers for attached sessions only, so the caller's value
+   * stands in. That concession is bounded by the fence above — the channel is
+   * loopback-only and the caller is the app, which received this very path from
+   * this very Host — and nothing here trusts it for anything but the root.
+   * @param {object} payload - the request payload.
+   * @param {string} sessionId - the asking session.
+   * @returns {string | undefined} the root, when one is known.
+   */
+  function workspaceRoot(payload, sessionId) {
+    const live = ctx.sessions.get(sessionId)?.header?.cwd
+    if (typeof live === 'string' && live !== '') return live
+    const claimed = payload?.cwd
+    return typeof claimed === 'string' && claimed !== '' ? claimed : undefined
+  }
+
+  /**
+   * Accept one pasted image.
+   * @param {object} payload - `{ sessionId, cwd, mediaType, data, name }`.
+   * @param {AbortSignal} signal - carries the caller's departure.
+   * @returns {Promise<object>} an RpcResult with the stashed entry.
+   */
+  async function stashImage(payload, signal) {
+    const sessionId = payload?.sessionId
+    if (typeof sessionId !== 'string' || sessionId === '') {
+      return badRequest('qwen-image: stash needs a sessionId')
+    }
+    const mediaType = payload?.mediaType
+    if (typeof mediaType !== 'string' || !Object.values(MEDIA_TYPES).includes(mediaType)) {
+      return badRequest(`qwen-image: ${JSON.stringify(String(mediaType))} is not an accepted image type`)
+    }
+    const accepted = ctx.get('attachments')?.imageLimits.mediaTypes
+    if (accepted !== undefined && !accepted.includes(mediaType)) {
+      return badRequest(`qwen-image: this deployment does not accept ${mediaType} images`)
+    }
+    const data = payload?.data
+    if (typeof data !== 'string' || data === '') {
+      return badRequest('qwen-image: stash needs base64 image data')
+    }
+
+    const cap = byteCap()
+    // Screen the encoded length before allocating: base64 is 4 characters per 3
+    // bytes, so this rejects an over-cap paste without decoding it first.
+    if (data.length > Math.ceil(cap / 3) * 4 + 1024) {
+      return badRequest(`qwen-image: the pasted image is larger than this deployment's ${formatBytes(cap)} limit`)
+    }
+    const bytes = Buffer.from(data, 'base64')
+    if (bytes.byteLength === 0) return badRequest('qwen-image: the pasted image decoded to no bytes')
+    if (bytes.byteLength > cap) {
+      return badRequest(`qwen-image: the pasted image is ${formatBytes(bytes.byteLength)}, over this deployment's ${formatBytes(cap)} limit`)
+    }
+
+    const root = workspaceRoot(payload, sessionId)
+    if (root === undefined) {
+      return badRequest(`qwen-image: session ${JSON.stringify(sessionId)} has no workspace root`)
+    }
+
+    const file = stashFileName(mediaType)
+    const directory = join(root, STASH_DIR)
+    const absolute = join(directory, file)
+    try {
+      signal?.throwIfAborted()
+      await mkdir(directory, { recursive: true })
+      await writeFile(absolute, bytes)
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return { ok: false, error: { code: 'cancelled', message: 'qwen-image: paste abandoned', details: {} } }
+      }
+      return unwritable(`qwen-image: could not save the pasted image: ${String(error?.code ?? error)}`, directory)
+    }
+
+    const entry = {
+      rel: `${STASH_DIR}/${file}`,
+      abs: absolute,
+      name: displayName(payload?.name, file),
+      bytes: bytes.byteLength,
+    }
+    await stash.add(sessionId, entry)
+    ctx.logger.info(`qwen-image: stashed a pasted image for session ${sessionId} at ${entry.rel}`)
+    return { ok: true, value: { path: entry.rel, name: entry.name, bytes: entry.bytes } }
+  }
+
+  ctx.connection.rpc.handle(CHANNEL, async (endpoint, payload, signal) => {
+    if (endpoint === 'stash') return await stashImage(payload, signal)
+
+    const sessionId = payload?.sessionId
+    if (endpoint === 'list') {
+      if (typeof sessionId !== 'string' || sessionId === '') {
+        return badRequest('qwen-image: list needs a sessionId')
+      }
+      return {
+        ok: true,
+        value: {
+          entries: stash.list(sessionId).map(entry => ({
+            path: entry.rel,
+            name: entry.name,
+            bytes: entry.bytes,
+          })),
+        },
+      }
+    }
+
+    if (endpoint === 'drop') {
+      if (typeof sessionId !== 'string' || sessionId === '') {
+        return badRequest('qwen-image: drop needs a sessionId')
+      }
+      const path = payload?.path
+      if (typeof path !== 'string' || path === '') {
+        return badRequest('qwen-image: drop needs the path to forget')
+      }
+      // A dismissal deletes the bytes: the user said they do not want this image
+      // read, and leaving it in the workspace would be litter they did not ask for.
+      await stash.forget(sessionId, stash.find(sessionId, path), true)
+      return { ok: true, value: { path } }
+    }
+
+    // The browser half calls this once to decide whether pasting can be
+    // intercepted at all, which matters because the desktop shell forwards
+    // fetches through its own bridge rather than the web server. When it fails,
+    // that half leaves the app's native paste alone.
+    if (endpoint === 'probe') return { ok: true, value: { channel: CHANNEL } }
+
+    return badRequest(`qwen-image: unknown endpoint ${JSON.stringify(endpoint)}`)
+  }, { authority: 'loopback' })
+}
+
 /**
  * Register the tool.
  * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context.
@@ -246,15 +621,47 @@ export function apply(ctx, config) {
   let resolvedRoute
   ctx.on('llm/adapters-updated', () => { resolvedRoute = undefined })
 
+  /** Pasted images waiting to be read, per session. */
+  const stash = new PasteStash()
+
+  /*
+   * Tell the model what is waiting. An optional child rather than a hard
+   * dependency: a composition with no system-prompt registry still gets the
+   * tool, it just cannot be told about a paste it never received either.
+   *
+   * Order 120 puts this in the tool-guidance band the seam documents (100–199),
+   * after the sandbox policy (110) and the approval policy (115) — the two
+   * facts that decide whether a file may be touched at all belong before the
+   * one that says which file to look at.
+   */
+  ctx.inject(['systemPrompt'], (promptCtx) => {
+    promptCtx.systemPrompt.context({
+      name: 'qwen-image:pasted',
+      order: 120,
+      // Evaluated at every assembly with that assembly's agent, which is how one
+      // global registration says something different per session. A bare
+      // assemble() (tests, diagnostics) has no session and states nothing.
+      text: context => describePending(stash.list(context.agent?.id)),
+    })
+  })
+
+  /*
+   * The stash channel. An optional child for the same reason: a headless or
+   * CLI-only deployment composes no connection service, has no browser to
+   * paste from, and must still get the tool.
+   */
+  ctx.inject(['connection', 'sessions'], (wireCtx) => {
+    installStashChannel(wireCtx, stash)
+  })
+
   ctx.tools.register(defineTool({
     name: 'qwen_image',
     description:
-      'Look at a local image file and return a text answer about it. Use this whenever you need to read a screenshot, chart, scan, or photo: the image is sent to a separate vision model, so it works even though your own model cannot accept images. Supports PNG/JPEG/WebP/GIF.',
+      'Look at an image and return a text answer about it. Use this whenever you need to read a screenshot, chart, scan, or photo: the image is sent to a separate vision model, so it works even though your own model cannot accept images. It also reads images the user PASTED into the composer — those never appear in the conversation content, so this tool is the only way to see them; omit file_path to take the most recent one. Supports PNG/JPEG/WebP/GIF.',
     parameters: {
       file_path: {
         type: 'string',
-        required: true,
-        description: 'Absolute path to the image file. A relative path resolves against the session workspace.',
+        description: 'Path to the image file; absolute, or relative to the session workspace. Omit it to read the most recently pasted image when one is waiting.',
       },
       question: {
         type: 'string',
@@ -282,15 +689,47 @@ export function apply(ctx, config) {
     isConcurrencySafe: () => true,
     // Declaring the file as a read location is what lets a resource/deliverable
     // surface account for it without knowing this tool's name.
-    presentCall: args => ({
-      card: 'generic',
-      title: `Look at ${basename(String(args.file_path ?? ''))}`,
-      kind: 'read',
-      locations: [{ path: String(args.file_path ?? '') }],
-    }),
+    presentCall: (args) => {
+      const path = String(args.file_path ?? '').trim()
+      // An omitted path is resolved inside `execute`, from state this synchronous
+      // presenter cannot see, so the call presents generically and contributes no
+      // location. The runtime context lists the paths, so a model that wants to be
+      // legible here has one to pass.
+      return {
+        card: 'generic',
+        title: path === '' ? 'Look at the pasted image' : `Look at ${basename(path)}`,
+        kind: 'read',
+        ...path === '' ? {} : { locations: [{ path }] },
+      }
+    },
     async execute(args, exec) {
-      const requested = String(args.file_path ?? '').trim()
-      if (requested === '') throw new Error('qwen_image: file_path must be a non-empty string')
+      const sessionId = exec.agent?.id
+      const asked = String(args.file_path ?? '').trim()
+
+      /*
+       * Which waiting paste this call consumes, if any.
+       *
+       * Two ways in. An omitted path MEANS "the one that just arrived", which is
+       * what makes a bare paste-then-ask work. An explicit path is matched
+       * against the list too, so a model that passes the path the runtime context
+       * gave it still clears the entry — otherwise the snapshot would keep asking
+       * it to look at an image it just looked at.
+       */
+      let consumed
+      let requested = asked
+      if (asked === '') {
+        const waiting = stash.list(sessionId)
+        consumed = waiting[waiting.length - 1]
+        if (consumed === undefined) {
+          throw new Error(
+            'qwen_image: file_path is required. It may be omitted only when the user has just pasted '
+            + 'an image into the composer, and no pasted image is waiting in this session.',
+          )
+        }
+        requested = consumed.rel
+      } else {
+        consumed = stash.find(sessionId, asked)
+      }
 
       const mediaType = MEDIA_TYPES[extname(requested).toLowerCase()]
       if (mediaType === undefined) {
@@ -342,6 +781,11 @@ export function apply(ctx, config) {
       if (description === '') {
         throw new Error(`qwen_image: "${route.model}" returned no text for "${target.displayPath}"`)
       }
+      // Looked at, so it stops being "waiting" — the next assembly's snapshot
+      // will not ask again. The bytes stay on disk: the model now holds a path it
+      // can pass a second time, and the user can still open the file. A failure
+      // above leaves the entry listed on purpose, so a retry is still offered.
+      await stash.forget(sessionId, consumed, false)
       return { path: target.displayPath, model: route.model, description }
     },
   }))

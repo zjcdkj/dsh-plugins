@@ -1,11 +1,12 @@
 {
   "name": "dsh-plugin-qwen-image",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "DeepSeek Harness out-of-tree plugin: give a text-only coding model eyes by routing images to a Qwen-VL (DashScope) route through ctx.llm and returning text.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -21,7 +22,19 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/client.js"
   },
   "keywords": [
     "deepseek-harness",
@@ -36,6 +49,8 @@
     "multimodal",
     "text-only-llm",
     "image-to-text",
+    "paste-image",
+    "clipboard",
     "coding-agent"
   ],
   "author": "zjcdkj",

@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.3.0
+
+**Pasting an image into the composer now works.** Paste or drop a screenshot and
+ask about it in the same message; the model reads it with `qwen_image`. The
+composer's text is never touched — no injected path, no draft you did not type.
+
+Before this, pasting failed and it failed late: the app accepted the image into
+its own rail, you sent, and the Host refused the whole request with *"Model … does
+not support image input"*. The image was never the problem; putting it in the
+conversation was.
+
+So the paste is taken before the app sees it. A new browser half claims the event
+in the capture phase, hands the bytes to this package's host half over a channel
+of its own, and the host saves them under `<workspace>/.dsh-pasted/` and states
+in the runtime context that an image is waiting. The conversation still carries
+no image part, which is exactly why the request goes through.
+
+- `file_path` is now **optional**: omit it to read the most recent pasted image
+- a strip above the composer lists what is waiting, with a thumbnail and a
+  dismiss button; dismissing deletes the file, and the strip is absent entirely
+  when nothing waits
+- the waiting list is per session, and the prompt text is evaluated per assembly
+  from that assembly's agent, so one conversation never sees another's pastes
+- reading an image drops it from the waiting list but **keeps the file**, so the
+  model can pass the same path again and you can still open it
+- a mixed paste (image *and* text) is handled too: the image goes to the channel
+  and the text is handed straight back to the app, so it behaves like pasting
+  either one alone
+- a paste outside the composer, or one carrying only text, is not touched
+- the browser half **probes the channel first** and leaves the app's native paste
+  completely alone until that succeeds — cancelling a paste it could not complete
+  would destroy the clipboard for nothing
+- `connection`, `sessions` and `systemPrompt` are optional children, so a
+  CLI-only or headless composition still gets the tool with no paste path and no
+  waiting registration
+- the host generates every stored filename; the caller supplies bytes and a media
+  type but never a path or a name, so the channel has no traversal surface. It is
+  `authority: 'loopback'` on top of that
+- byte caps come from `ctx.attachments.imageLimits`, so a paste accepted here is
+  one the vision request can actually carry
+- per session at most 8 images are held and at most 64 sessions are tracked;
+  eviction removes the file too
+
+Docs: both READMEs gain a paste section, and the "no clipboard data" limitation
+is gone because it is no longer true.
+
+> Upgrading from 0.2.0: npm's caret on a `0.x` version stops below the next
+> minor, so `^0.2.0` does not include `0.3.0` and `dsh plugin update` will not
+> cross it. Run the install command again to move the range. The paste strip
+> needs the browser half, which is a new file — after updating a `file:`
+> checkout, run `dsh plugin --profile web install` so it gets linked.
+
 ## 0.2.0
 
 **Installing no longer requires editing settings.** The configured route is now
