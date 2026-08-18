@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-qwen-image",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DeepSeek Harness out-of-tree plugin: give a text-only coding model eyes by routing images to a Qwen-VL (DashScope) route through ctx.llm and returning text.",
   "type": "module",
   "main": "./lib/index.js",

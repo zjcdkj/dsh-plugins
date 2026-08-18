@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+Docs only. Both READMEs now give the `.gitignore` line for `.dsh-pasted/`, since
+a pasted screenshot otherwise shows up in `git status` for every workspace that
+is a repository, and state why that directory sits in the workspace rather than
+in a temp folder.
+
 ## 0.3.0
 
 **Pasting an image into the composer now works.** Paste or drop a screenshot and
